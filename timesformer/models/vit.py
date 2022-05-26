@@ -92,7 +92,7 @@ class Block(nn.Module):
                  drop_path=0.1, act_layer=nn.GELU, norm_layer=nn.LayerNorm, attention_type='divided_space_time'):
         super().__init__()
         self.attention_type = attention_type
-        assert(attention_type in ['divided_space_time', 'space_only','joint_space_time'])
+        assert(attention_type in ['divided_space_time', 'space_only','joint_space_time', 'divided_space'])
 
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
@@ -120,14 +120,17 @@ class Block(nn.Module):
             x = x + self.drop_path(self.attn(self.norm1(x)))
             x = x + self.drop_path(self.mlp(self.norm2(x)))
             return x
-        elif self.attention_type == 'divided_space_time':
-            ## Temporal
-            xt = x[:,1:,:]
-            xt = rearrange(xt, 'b (h w t) m -> (b h w) t m',b=B,h=H,w=W,t=T)
-            res_temporal = self.drop_path(self.temporal_attn(self.temporal_norm1(xt)))
-            res_temporal = rearrange(res_temporal, '(b h w) t m -> b (h w t) m',b=B,h=H,w=W,t=T)
-            res_temporal = self.temporal_fc(res_temporal)
-            xt = x[:,1:,:] + res_temporal
+        elif self.attention_type in ['divided_space_time', 'divided_space']:
+            if self.attention_type == 'divided_space_time':
+                ## Temporal
+                xt = x[:,1:,:]
+                xt = rearrange(xt, 'b (h w t) m -> (b h w) t m',b=B,h=H,w=W,t=T)
+                res_temporal = self.drop_path(self.temporal_attn(self.temporal_norm1(xt)))
+                res_temporal = rearrange(res_temporal, '(b h w) t m -> b (h w t) m',b=B,h=H,w=W,t=T)
+                res_temporal = self.temporal_fc(res_temporal)
+                xt = x[:,1:,:] + res_temporal
+            else:
+                xt = x[:,1:,:]
 
             ## Spatial
             init_cls_token = x[:,0,:].unsqueeze(1)
